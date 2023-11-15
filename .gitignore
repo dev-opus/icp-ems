@@ -1,0 +1,12 @@
+# rust
+/target
+/Cargo.lock
+
+# dfx temporary files
+.dfx/
+
+# generated files
+src/declarations/
+
+# enviroment variables
+.env
