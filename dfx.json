@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "canisters": {
+    "ems_backend": {
+      "type": "rust",
+      "package": "ems_backend",
+      "candid": "ems_backend/ems_backend.did"
+    }
+  },
+  "output_env_file": ".env"
+}
