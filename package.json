@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "generate": "./did.sh && dfx generate",
-    "gen-deploy": "./did.sh && dfx generate && dfx deploy -y"
+    "generate": "dfx generate",
+    "gen-deploy": "dfx generate && dfx deploy -y"
   }
 }
