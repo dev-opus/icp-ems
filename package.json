@@ -1,6 +1,5 @@
 {
   "scripts": {
-    "generate": "dfx generate",
-    "gen-deploy": "dfx generate && dfx deploy -y"
+    "deploy": "dfx generate && dfx deploy -y"
   }
 }
