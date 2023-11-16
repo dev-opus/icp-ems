@@ -1,0 +1,29 @@
+type Employee = record {
+  id : nat64;
+  updated_at : opt nat64;
+  transferable : bool;
+  name : text;
+  created_at : nat64;
+  email : text;
+  rating : opt text;
+  employer_id : text;
+};
+type EmployeePayload = record { name : text; email : text };
+type Error = variant {
+  NotFound : record { msg : text };
+  InvalidType : record { msg : text };
+  Forbidden : record { msg : text };
+};
+type RatingPayload = record { rating : text; employee_id : nat64 };
+type Result = variant { Ok : text; Err : Error };
+type Result_1 = variant { Ok : Employee; Err : Error };
+type Result_2 = variant { Ok : vec Employee; Err : Error };
+service : {
+  add_employee : (nat64) -> (Result);
+  create_employee : (EmployeePayload) -> (opt Employee);
+  delete_employee : (nat64) -> (Result);
+  get_employee : (nat64) -> (Result_1) query;
+  get_employees : () -> (Result_2) query;
+  set_rating : (RatingPayload) -> (Result_1);
+  toggle_transferable : (nat64) -> (Result);
+}
