@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "start": "dfx start --background",
     "deploy": "dfx generate && dfx deploy -y"
   }
 }
