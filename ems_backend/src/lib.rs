@@ -1,6 +1,3 @@
-Certainly, I'll provide a refactored version of the code addressing the mentioned errors, vulnerabilities, and bugs. Please note that the code improvements are based on the provided information:
-
-```rust
 #[macro_use]
 extern crate serde;
 use candid::{Decode, Encode};
@@ -153,7 +150,7 @@ fn set_rating(payload: RatingPayload) -> Result<Employee, Error> {
         "poor".to_string(),
     ];
 
-    if !ratings.contains(&payload.rating) {
+    if !ratings.contains(&payload.rating.to_lowercase()) {
         return Err(Error::InvalidType {
             msg: format!("Invalid rating type! Accepted values are: {:?}", ratings),
         });
@@ -190,7 +187,8 @@ fn toggle_transferable(employee_id: u64) -> Result<String, Error> {
             ))
         } else {
             Err(Error::Forbidden {
-                msg: "Cannot alter an employee's transferable status you did not employ.".to_string(),
+                msg: "Cannot alter an employee's transferable status you did not employ."
+                    .to_string(),
             })
         }
     } else {
