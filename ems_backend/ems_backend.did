@@ -10,9 +10,11 @@ type Employee = record {
 };
 type EmployeePayload = record { name : text; email : text };
 type Error = variant {
+  InvalidInput : record { msg : text };
   NotFound : record { msg : text };
   InvalidType : record { msg : text };
   Forbidden : record { msg : text };
+  InvalidOperation : record { msg : text };
 };
 type RatingPayload = record { rating : text; employee_id : nat64 };
 type Result = variant { Ok : text; Err : Error };
@@ -20,7 +22,7 @@ type Result_1 = variant { Ok : Employee; Err : Error };
 type Result_2 = variant { Ok : vec Employee; Err : Error };
 service : {
   add_employee : (nat64) -> (Result);
-  create_employee : (EmployeePayload) -> (opt Employee);
+  create_employee : (EmployeePayload) -> (Result_1);
   delete_employee : (nat64) -> (Result);
   get_employee : (nat64) -> (Result_1) query;
   get_employees : () -> (Result_2) query;
