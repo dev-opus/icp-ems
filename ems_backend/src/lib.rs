@@ -1,3 +1,6 @@
+Certainly, I'll provide a refactored version of the code addressing the mentioned errors, vulnerabilities, and bugs. Please note that the code improvements are based on the provided information:
+
+```rust
 #[macro_use]
 extern crate serde;
 use candid::{Decode, Encode};
@@ -65,78 +68,65 @@ struct RatingPayload {
     rating: String,
 }
 
-/*
-    Get a list of all employees under your employ
-*/
-
 #[ic_cdk::query]
 fn get_employees() -> Result<Vec<Employee>, Error> {
     let employees_map: Vec<(u64, Employee)> =
-        STORAGE.with(|sevice| sevice.borrow().iter().collect());
+        STORAGE.with(|service| service.borrow().iter().collect());
 
-    let employees_vec: Vec<Employee> = employees_map
-        .into_iter()
-        .map(|(_, employee)| employee)
-        .collect();
-
-    if !employees_vec.is_empty() {
-        let mut employees: Vec<Employee> = Vec::new();
-
-        for employee in employees_vec {
-            if caller().to_string() == employee.employer_id {
-                employees.push(employee);
-            };
-        }
+    if !employees_map.is_empty() {
+        let caller_id = caller().to_string();
+        let employees: Vec<Employee> = employees_map
+            .into_iter()
+            .filter(|(_, employee)| employee.employer_id == caller_id)
+            .map(|(_, employee)| employee)
+            .collect();
 
         if !employees.is_empty() {
             Ok(employees)
         } else {
             Err(Error::NotFound {
-                msg: ("No employee Records found".to_string()),
+                msg: "No employee records found for the caller.".to_string(),
             })
         }
     } else {
         Err(Error::NotFound {
-            msg: ("No employee Records found".to_string()),
+            msg: "No employee records found.".to_string(),
         })
     }
 }
 
-/*
-    Get a single employee by their ID
-*/
-
 #[ic_cdk::query]
 fn get_employee(id: u64) -> Result<Employee, Error> {
-    match _get_employee(&id) {
-        Some(employee) => {
-            if employee.employer_id == caller().to_string() {
-                Ok(employee)
-            } else {
-                Err(Error::NotFound {
-                    msg: ("Cannot view an employee you did not employ".to_string()),
-                })
-            }
+    if let Some(employee) = _get_employee(&id) {
+        if employee.employer_id == caller().to_string() {
+            Ok(employee)
+        } else {
+            Err(Error::NotFound {
+                msg: "Cannot view an employee you did not employ.".to_string(),
+            })
         }
-
-        None => Err(Error::NotFound {
+    } else {
+        Err(Error::NotFound {
             msg: format!("No employee with id={} found", id),
-        }),
+        })
     }
 }
 
-/*
-    Create an employee record
-*/
-
 #[ic_cdk::update]
-fn create_employee(payload: EmployeePayload) -> Option<Employee> {
+fn create_employee(payload: EmployeePayload) -> Result<Employee, Error> {
+    // Validate payload before creating an employee
+    if payload.name.is_empty() || payload.email.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Name and email are required for creating an employee.".to_string(),
+        });
+    }
+
     let id = ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
             counter.borrow_mut().set(current_value + 1)
         })
-        .expect("cannot increment id counter");
+        .expect("Cannot increment id counter");
 
     let employee = Employee {
         id,
@@ -150,12 +140,8 @@ fn create_employee(payload: EmployeePayload) -> Option<Employee> {
     };
 
     do_insert(&employee);
-    Some(employee)
+    Ok(employee)
 }
-
-/*
-    Give an employee a rating
-*/
 
 #[ic_cdk::update]
 fn set_rating(payload: RatingPayload) -> Result<Employee, Error> {
@@ -167,111 +153,104 @@ fn set_rating(payload: RatingPayload) -> Result<Employee, Error> {
         "poor".to_string(),
     ];
 
-    match _get_employee(&payload.employee_id) {
-        Some(mut employee) => {
-            if employee.employer_id == caller().to_string() {
-                if !ratings.contains(&payload.rating) {
-                    Err(Error::InvalidType {
-                        msg: format!("Invalid rating type! Accepted values are: {:?}", ratings),
-                    })
-                } else {
-                    employee.rating = Some(payload.rating);
-                    employee.updated_at = Some(time());
-                    do_insert(&employee);
-                    Ok(employee)
-                }
-            } else {
-                Err(Error::NotFound {
-                    msg: ("Cannot rate an employee you did not employ".to_string()),
-                })
-            }
-        }
+    if !ratings.contains(&payload.rating) {
+        return Err(Error::InvalidType {
+            msg: format!("Invalid rating type! Accepted values are: {:?}", ratings),
+        });
+    }
 
-        None => Err(Error::NotFound {
+    if let Some(mut employee) = _get_employee(&payload.employee_id) {
+        if employee.employer_id == caller().to_string() {
+            employee.rating = Some(payload.rating);
+            employee.updated_at = Some(time());
+            do_insert(&employee);
+            Ok(employee)
+        } else {
+            Err(Error::NotFound {
+                msg: "Cannot rate an employee you did not employ.".to_string(),
+            })
+        }
+    } else {
+        Err(Error::NotFound {
             msg: format!("No employee with id={} found", payload.employee_id),
-        }),
+        })
     }
 }
-
-/*
-    toggle your employee's transferable status
-*/
 
 #[ic_cdk::update]
 fn toggle_transferable(employee_id: u64) -> Result<String, Error> {
-    match _get_employee(&employee_id) {
-        Some(mut employee) => {
-            if employee.employer_id == caller().to_string() {
-                if employee.transferable == true {
-                    employee.transferable = false;
-                } else {
-                    employee.transferable = true;
-                };
-                employee.updated_at = Some(time());
-                do_insert(&employee);
-                Ok(format!(
-                    "Employee with ID: {} has transferable toggled to: {}",
-                    employee_id, employee.transferable
-                ))
-            } else {
-                Err(Error::Forbidden {
-                    msg: format!("Cannot alter an employee tranferable status you did employ"),
-                })
-            }
+    if let Some(mut employee) = _get_employee(&employee_id) {
+        if employee.employer_id == caller().to_string() {
+            employee.transferable = !employee.transferable;
+            employee.updated_at = Some(time());
+            do_insert(&employee);
+            Ok(format!(
+                "Employee with ID: {} has transferable toggled to: {}",
+                employee_id, employee.transferable
+            ))
+        } else {
+            Err(Error::Forbidden {
+                msg: "Cannot alter an employee's transferable status you did not employ.".to_string(),
+            })
         }
-        None => Err(Error::NotFound {
+    } else {
+        Err(Error::NotFound {
             msg: format!("No employee with id={} found", employee_id),
-        }),
+        })
     }
 }
 
-/*
-    transfer an employee to another employer
-*/
 #[ic_cdk::update]
 fn add_employee(employee_id: u64) -> Result<String, Error> {
-    match _get_employee(&employee_id) {
-        Some(mut employee) => {
-            if employee.transferable == true {
-                employee.employer_id = caller().to_string();
-                employee.updated_at = Some(time());
-                do_insert(&employee);
+    // Check if the employee is already employed
+    if _get_employee(&employee_id).is_some() {
+        return Err(Error::InvalidOperation {
+            msg: "Employee is already employed.".to_string(),
+        });
+    }
 
-                Ok(format!(
-                    "Employee with ID: {} has been added to your employ",
-                    employee_id
-                ))
-            } else {
-                Err(Error::Forbidden {
-                    msg: format!("Employee with ID: {} is not transferable", employee_id),
-                })
-            }
+    if let Some(mut employee) = _get_employee(&employee_id) {
+        if employee.transferable {
+            employee.employer_id = caller().to_string();
+            employee.updated_at = Some(time());
+            do_insert(&employee);
+            Ok(format!(
+                "Employee with ID: {} has been added to your  employ",
+                employee_id
+            ))
+        } else {
+            Err(Error::Forbidden {
+                msg: format!("Employee with ID: {} is not transferable", employee_id),
+            })
         }
-        None => Err(Error::NotFound {
+    } else {
+        Err(Error::NotFound {
             msg: format!("No employee with id={} found", employee_id),
-        }),
+        })
     }
 }
 
-/*
-    Delete your employee
-*/
 #[ic_cdk::update]
 fn delete_employee(employee_id: u64) -> Result<String, Error> {
-    match STORAGE.with(|service| service.borrow_mut().remove(&employee_id)) {
-        Some(employee) => Ok(format!(
-            "Employee with ID: {} has been deleted",
-            employee.id
-        )),
-        None => Err(Error::NotFound {
+    if let Some(employee) = STORAGE.with(|service| service.borrow_mut().remove(&employee_id)) {
+        if employee.employer_id == caller().to_string() {
+            Ok(format!(
+                "Employee with ID: {} has been deleted",
+                employee.id
+            ))
+        } else {
+            // Reinsert the employee if the caller is not the employer
+            do_insert(&employee);
+            Err(Error::Forbidden {
+                msg: "Cannot delete an employee you did not employ.".to_string(),
+            })
+        }
+    } else {
+        Err(Error::NotFound {
             msg: format!("No employee with id={} found", employee_id),
-        }),
+        })
     }
 }
-
-/*
-    helper functions and enums
-*/
 
 fn _get_employee(id: &u64) -> Option<Employee> {
     STORAGE.with(|s| s.borrow().get(id))
@@ -286,6 +265,8 @@ enum Error {
     NotFound { msg: String },
     InvalidType { msg: String },
     Forbidden { msg: String },
+    InvalidInput { msg: String },
+    InvalidOperation { msg: String },
 }
 
 ic_cdk::export_candid!();
