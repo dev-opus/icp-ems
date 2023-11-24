@@ -65,13 +65,14 @@ struct RatingPayload {
     rating: String,
 }
 
+// Function to fetch all employees in the canister
 #[ic_cdk::query]
 fn get_employees() -> Result<Vec<Employee>, Error> {
     let employees_map: Vec<(u64, Employee)> =
         STORAGE.with(|service| service.borrow().iter().collect());
-
     if !employees_map.is_empty() {
         let caller_id = caller().to_string();
+        // filter through all employees and return only the employees employed by the caller
         let employees: Vec<Employee> = employees_map
             .into_iter()
             .filter(|(_, employee)| employee.employer_id == caller_id)
@@ -92,9 +93,11 @@ fn get_employees() -> Result<Vec<Employee>, Error> {
     }
 }
 
+// Function to get an employee from the canister
 #[ic_cdk::query]
 fn get_employee(id: u64) -> Result<Employee, Error> {
     if let Some(employee) = _get_employee(&id) {
+        // Only return the employee's data if the caller is the employer
         if employee.employer_id == caller().to_string() {
             Ok(employee)
         } else {
@@ -109,6 +112,7 @@ fn get_employee(id: u64) -> Result<Employee, Error> {
     }
 }
 
+// Function add an employee to the canister
 #[ic_cdk::update]
 fn create_employee(payload: EmployeePayload) -> Result<Employee, Error> {
     // Validate payload before creating an employee
@@ -117,7 +121,6 @@ fn create_employee(payload: EmployeePayload) -> Result<Employee, Error> {
             msg: "Name and email are required for creating an employee.".to_string(),
         });
     }
-
     let id = ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -135,11 +138,12 @@ fn create_employee(payload: EmployeePayload) -> Result<Employee, Error> {
         created_at: time(),
         updated_at: Some(time()),
     };
-
+    // save employee
     do_insert(&employee);
     Ok(employee)
 }
 
+// Function that allows employers to rate their employees
 #[ic_cdk::update]
 fn set_rating(payload: RatingPayload) -> Result<Employee, Error> {
     let ratings = [
@@ -157,6 +161,7 @@ fn set_rating(payload: RatingPayload) -> Result<Employee, Error> {
     }
 
     if let Some(mut employee) = _get_employee(&payload.employee_id) {
+        // Employee can be rated only if the caller is the employer
         if employee.employer_id == caller().to_string() {
             employee.rating = Some(payload.rating);
             employee.updated_at = Some(time());
@@ -174,6 +179,7 @@ fn set_rating(payload: RatingPayload) -> Result<Employee, Error> {
     }
 }
 
+// Function that allows an employer to make his employee become hireable by other employers
 #[ic_cdk::update]
 fn toggle_transferable(employee_id: u64) -> Result<String, Error> {
     if let Some(mut employee) = _get_employee(&employee_id) {
@@ -198,16 +204,11 @@ fn toggle_transferable(employee_id: u64) -> Result<String, Error> {
     }
 }
 
+// Function to allow an employer to hire an employee from another employer
 #[ic_cdk::update]
 fn add_employee(employee_id: u64) -> Result<String, Error> {
-    // Check if the employee is already employed
-    if _get_employee(&employee_id).is_some() {
-        return Err(Error::InvalidOperation {
-            msg: "Employee is already employed.".to_string(),
-        });
-    }
-
     if let Some(mut employee) = _get_employee(&employee_id) {
+        // Only employees that are transferable can be hired by another employer
         if employee.transferable {
             employee.employer_id = caller().to_string();
             employee.updated_at = Some(time());
@@ -228,6 +229,7 @@ fn add_employee(employee_id: u64) -> Result<String, Error> {
     }
 }
 
+// Function that allows an employer to delete the profile of his employee
 #[ic_cdk::update]
 fn delete_employee(employee_id: u64) -> Result<String, Error> {
     if let Some(employee) = STORAGE.with(|service| service.borrow_mut().remove(&employee_id)) {
@@ -257,6 +259,7 @@ fn _get_employee(id: &u64) -> Option<Employee> {
 fn do_insert(employee: &Employee) {
     STORAGE.with(|service| service.borrow_mut().insert(employee.id, employee.clone()));
 }
+
 
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum Error {
